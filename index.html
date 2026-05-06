@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FlowSpend</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="topbar__identity">
+          <span class="topbar__brand">FlowSpend</span>
+          <span class="topbar__tagline">Calendar-first spending control</span>
+        </div>
+        <div class="topbar__money" aria-label="Money summary">
+          <label class="money-card money-card--input">
+            <span class="money-card__label">Total</span>
+            <span class="money-card__field">
+              <span id="currencyLabel">Rs</span>
+              <input type="text" inputmode="decimal" class="topbar__input" id="totalInput" placeholder="0" />
+            </span>
+          </label>
+          <div class="money-card money-card--spent">
+            <span class="money-card__label">Planned spend</span>
+            <span class="money-card__value" id="spentDisplay">-Rs 0</span>
+          </div>
+          <div class="money-card money-card--available">
+            <span class="money-card__label">Available</span>
+            <span class="money-card__value" id="availableDisplay">Rs 0</span>
+          </div>
+        </div>
+        <div class="topbar__actions" aria-label="App actions">
+          <label class="btn btn--primary btn--sm topbar-import admin-file" title="Import bank statement (PDF or Excel)">
+            Import statement
+            <input type="file" id="statementImportInput" accept=".xlsx,.xls,.pdf,application/pdf" hidden />
+          </label>
+          <label class="theme-chip" title="Change colour theme">
+            <input type="color" id="themeColorPicker" value="#2f766d" aria-label="Accent colour" />
+          </label>
+          <select class="theme-preset" id="themePreset" aria-label="Theme preset">
+            <option value="custom">Custom</option>
+            <option value="sage">Sage</option>
+            <option value="ocean">Ocean</option>
+            <option value="graphite">Graphite</option>
+            <option value="rose">Rose</option>
+            <option value="amber">Amber</option>
+          </select>
+          <button type="button" class="btn btn--ghost btn--sm" id="btnAdmin">Admin</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="btnCategoryReview">Categories</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="btnResetEntries">Reset</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="btnUndoReset">Undo</button>
+        </div>
+      </header>
+
+      <div class="calendar-pane">
+        <div class="summary-strip" aria-label="Summary">
+          <div class="summary-card">
+            <span class="summary-card__label">This month bought</span>
+            <span class="summary-card__value" id="summaryBoughtMonth">Rs 0</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-card__label">Imported history</span>
+            <span class="summary-card__value" id="summaryImported">Rs 0</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-card__label">Upcoming committed</span>
+            <span class="summary-card__value" id="summaryUpcoming">Rs 0</span>
+          </div>
+        </div>
+        <section class="unscheduled-lane" id="unscheduledLane" aria-label="Unscheduled upcoming"></section>
+        <div class="calendar-wrap" id="calendarRoot"></div>
+      </div>
+
+      <aside class="side-stack" aria-label="Side controls">
+        <div class="side-stack__scroll">
+          <div class="side-stack__list">
+            <div class="month-summary" id="monthSummary" aria-label="Month summary"></div>
+            <div class="side-first-hint" id="firstRunHint" hidden>
+              Try:
+              <kbd>rent 18000 5th</kbd>
+              in the bar — or pick a day and type an amount.
+            </div>
+            <div class="side-bulk-bar" id="sideBulkBar" hidden>
+              <span class="side-bulk-bar__count" id="sideBulkCount">0 selected</span>
+              <button type="button" class="btn btn--ghost btn--sm" id="sideBulkMove">Move…</button>
+              <select id="sideBulkStatus" class="side-filter-select side-filter-select--bulk" aria-label="Bulk set status">
+                <option value="">Set status…</option>
+                <option value="Idea">Idea</option>
+                <option value="Wishlist">Wishlist</option>
+                <option value="Research">Research</option>
+                <option value="Committed">Committed</option>
+                <option value="Scheduled">Scheduled</option>
+                <option value="Delayed">Delayed</option>
+              </select>
+              <button type="button" class="btn btn--ghost btn--sm" id="sideBulkDelete">Delete</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="sideBulkClear">Clear</button>
+            </div>
+            <div class="side-filters" aria-label="Item filters">
+              <input type="search" id="sideSearch" class="side-filter-input" placeholder="Search items…" />
+              <div class="side-filters__row">
+                <div class="side-filters__field">
+                  <span class="side-filters__label">Status</span>
+                  <select id="sideStageFilter" class="side-filter-select" aria-label="Filter by status">
+                    <option value="">All statuses</option>
+                    <option value="Idea">Idea</option>
+                    <option value="Wishlist">Wishlist</option>
+                    <option value="Research">Research</option>
+                    <option value="Committed">Committed</option>
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="Delayed">Delayed</option>
+                    <option value="Bought">Bought</option>
+                  </select>
+                </div>
+                <div class="side-filters__field">
+                  <span class="side-filters__label">Source</span>
+                  <select id="sideSourceFilter" class="side-filter-select" aria-label="Filter by source">
+                    <option value="">Any source</option>
+                    <option value="manual">Manual</option>
+                    <option value="imported">Imported</option>
+                  </select>
+                </div>
+                <div class="side-filters__field">
+                  <span class="side-filters__label">Group</span>
+                  <select id="sideGroupBy" class="side-filter-select" aria-label="Group list by">
+                    <option value="">Group: none</option>
+                    <option value="status">Status</option>
+                    <option value="category">Category</option>
+                    <option value="source">Source</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="side-next7" id="sideNext7Wrap">
+              <h2 class="side-stack__heading side-stack__heading--compact">Next 7 days</h2>
+              <ul class="side-next7-list" id="sideNext7List"></ul>
+            </div>
+            <h2 class="side-stack__heading">Upcoming</h2>
+            <ul class="side-list side-list--upcoming" id="sideList"></ul>
+            <div class="recent-bought-head">
+              <h2 class="side-stack__heading side-stack__heading--sub">Recently bought</h2>
+              <div class="recent-bought-controls" aria-label="Recently bought month">
+                <button type="button" class="recent-bought-btn" id="recentBoughtPrev" aria-label="Previous bought month">
+                  ‹
+                </button>
+                <span class="recent-bought-label" id="recentBoughtLabel">This month</span>
+                <button type="button" class="recent-bought-btn" id="recentBoughtNext" aria-label="Next bought month">
+                  ›
+                </button>
+              </div>
+            </div>
+            <ul class="side-list side-list--bought" id="boughtList"></ul>
+          </div>
+          <div class="side-stack__chart">
+            <section class="chart-section" aria-label="Spend by category">
+              <div class="chart-section__head">
+                <span class="chart-section__title">Spend by category</span>
+                <div class="toggle" role="group" aria-label="Chart type">
+                  <button type="button" class="toggle__btn is-active" id="chartToggleBar">Bar</button>
+                  <button type="button" class="toggle__btn" id="chartTogglePie">Pie</button>
+                </div>
+              </div>
+              <p class="chart-section__scope" id="chartScopeLabel"></p>
+              <p class="chart-section__bar-hint" id="chartBarLegendHint" hidden>
+                Colours follow category; lighter stack = committed, darker = bought.
+              </p>
+              <select class="chart-source" id="chartBoughtSource" aria-label="Bought source">
+                <option value="all">All bought</option>
+                <option value="manual">Manual bought</option>
+                <option value="imported">Imported bought</option>
+              </select>
+              <div class="chart-section__canvas">
+                <canvas id="spendChart" width="260" height="140"></canvas>
+              </div>
+              <p class="chart-section__insight" id="chartInsight" hidden></p>
+            </section>
+          </div>
+        </div>
+      </aside>
+
+      <footer class="input-dock" aria-label="Quick add">
+        <div class="input-dock__inner">
+          <button type="button" class="input-dock__clear" id="barDateClear">Clear</button>
+          <span class="input-dock__hint" id="barDateChipText" hidden></span>
+          <input
+            type="text"
+            id="barInput"
+            class="input-dock__field"
+            placeholder="Type a purchase, idea, or plan. Example: cigs rs300 on 2 may"
+            autocomplete="off"
+            enterkeyhint="done"
+          />
+          <label class="input-dock__quick" title="Enter saves instantly using rule parse (no review modal). Falls back to review if parsing fails.">
+            <input type="checkbox" id="quickAddMode" />
+            <span>Quick add</span>
+          </label>
+        </div>
+      </footer>
+    </div>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Review / confirm (from bottom bar Enter) -->
+    <div class="modal" id="modalFast" hidden>
+      <div class="modal__card modal__card--wide" role="dialog" aria-modal="true" aria-labelledby="fastTitle">
+        <h3 class="modal__title" id="fastTitle">Review</h3>
+        <p class="modal__sub modal__sub--tight">Edit if needed, then confirm.</p>
+        <p class="modal__sub modal__sub--tight" id="fastParseSource"></p>
+        <label class="review-row review-row--candidate" id="fastCandidateRow" hidden>
+          <span class="review-label">Compare</span>
+          <select id="fastCandidateSelect" class="review-input"></select>
+        </label>
+        <div class="review-form">
+          <label class="review-row">
+            <span class="review-label">Name</span>
+            <input type="text" id="fastName" class="review-input" />
+          </label>
+          <label class="review-row">
+            <span class="review-label">Price</span>
+            <input type="number" id="fastPrice" class="review-input" min="0" step="1" />
+          </label>
+          <label class="review-row">
+            <span class="review-label">Category</span>
+            <input type="text" id="fastCategory" class="review-input" />
+          </label>
+          <label class="review-row">
+            <span class="review-label">Date</span>
+            <input type="date" id="fastDate" class="review-input" />
+          </label>
+          <label class="review-row">
+            <span class="review-label">Link</span>
+            <input type="text" id="fastLink" class="review-input" placeholder="—" />
+          </label>
+          <label class="review-row">
+            <span class="review-label">Stage</span>
+            <select id="fastStatus" class="review-input">
+              <option>Idea</option>
+              <option>Wishlist</option>
+              <option>Research</option>
+              <option>Committed</option>
+              <option>Scheduled</option>
+              <option>Delayed</option>
+              <option>Bought</option>
+            </select>
+          </label>
+          <label class="review-row">
+            <span class="review-label">Type</span>
+            <select id="fastType" class="review-input">
+              <option>One-off</option>
+              <option>Recurring</option>
+            </select>
+          </label>
+          <label class="review-row">
+            <span class="review-label">Deadline</span>
+            <input type="date" id="fastDeadline" class="review-input" />
+          </label>
+          <label class="review-row">
+            <span class="review-label">Note</span>
+            <textarea id="fastNote" class="review-input" rows="3"></textarea>
+          </label>
+          <label class="review-row">
+            <span class="review-label">Assumptions</span>
+            <textarea id="fastAssumptions" class="review-input" rows="3"></textarea>
+          </label>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" id="btnFastCancel">Cancel</button>
+          <button type="button" class="btn btn--primary" id="btnFastSave">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Item details -->
+    <div class="modal" id="modalEdit" hidden>
+      <div class="modal__card modal__card--wide" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+        <h3 class="modal__title" id="editTitle">Item details</h3>
+        <form id="formEdit" class="form">
+          <input type="hidden" id="editId" />
+          <label class="field">
+            <span>Name</span>
+            <input type="text" id="editName" required />
+          </label>
+          <label class="field">
+            <span>Price (Rs)</span>
+            <input type="number" id="editPrice" min="0" step="1" required />
+          </label>
+          <label class="field">
+            <span>Category</span>
+            <input type="text" id="editCategory" />
+          </label>
+          <label class="field">
+            <span>Stage</span>
+            <select id="editStatus">
+              <option>Idea</option>
+              <option>Wishlist</option>
+              <option>Research</option>
+              <option>Committed</option>
+              <option>Scheduled</option>
+              <option>Delayed</option>
+              <option>Bought</option>
+            </select>
+          </label>
+          <label class="field" id="editDateRow">
+            <span>Planned buy/payment date</span>
+            <input type="date" id="editDate" />
+          </label>
+          <label class="field" id="editDeadlineRow">
+            <span>Deadline</span>
+            <input type="date" id="editDeadline" />
+          </label>
+          <label class="field">
+            <span>Type</span>
+            <select id="editType">
+              <option>One-off</option>
+              <option>Recurring</option>
+            </select>
+          </label>
+          <div class="recurrence-fields" id="editRecurrenceFields">
+            <label class="field">
+              <span>Repeats</span>
+              <select id="editRecurrenceInterval">
+                <option value="monthly">Monthly</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Day of month</span>
+              <input type="number" id="editRecurrenceDay" min="1" max="31" />
+            </label>
+          </div>
+          <label class="field" id="editNoteRow">
+            <span>Note</span>
+            <textarea id="editNote" rows="3"></textarea>
+          </label>
+          <label class="field">
+            <span>Link</span>
+            <input type="text" id="editLink" placeholder="https://…" />
+          </label>
+          <div class="modal__actions modal__actions--split">
+            <button type="button" class="btn btn--danger" id="btnDelete">Delete</button>
+            <div class="modal__actions__right">
+              <button type="button" class="btn btn--ghost" id="btnEditCancel">Cancel</button>
+              <button type="submit" class="btn btn--primary">Save</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Assign date -->
+    <div class="modal" id="modalAssign" hidden>
+      <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="assignTitle">
+        <h3 class="modal__title" id="assignTitle">Assign date</h3>
+        <form id="formAssign" class="form">
+          <input type="hidden" id="assignId" />
+          <label class="field">
+            <span>Date</span>
+            <input type="date" id="assignDate" required />
+          </label>
+          <p class="modal__sub">
+            Item will be set to <strong>Scheduled</strong> if it is not already Committed, Scheduled, or Bought.
+          </p>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" id="btnAssignCancel">Cancel</button>
+            <button type="submit" class="btn btn--primary">Apply</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Admin -->
+    <div class="modal" id="modalAdmin" hidden>
+      <div class="modal__card modal__card--wide" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+        <h3 class="modal__title" id="adminTitle">Admin</h3>
+        <div class="form">
+          <label class="field">
+            <span>Backend parse endpoint</span>
+            <input type="text" id="adminBackendEndpoint" placeholder="http://127.0.0.1:8787/api/parse" />
+          </label>
+          <label class="field">
+            <span>Gemini API key</span>
+            <input type="password" id="adminGeminiApiKey" />
+          </label>
+          <label class="field">
+            <span>Gemini model</span>
+            <input type="text" id="adminGeminiModel" placeholder="gemini-2.5-flash" />
+          </label>
+          <label class="field">
+            <span>OpenAI API key</span>
+            <input type="password" id="adminOpenAiApiKey" />
+          </label>
+          <label class="field">
+            <span>OpenAI model</span>
+            <input type="text" id="adminOpenAiModel" placeholder="gpt-4o-mini" />
+          </label>
+          <section class="admin-provider-panel" aria-label="Custom AI providers">
+            <div class="admin-provider-panel__head">
+              <div>
+                <h4>Custom AI providers</h4>
+                <p>Add Groq, OpenRouter, or any OpenAI-compatible chat completions API.</p>
+              </div>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnAddAiProvider">Add provider</button>
+            </div>
+            <p class="admin-provider-status" id="adminProviderStatus"></p>
+            <div class="admin-provider-list" id="customAiProviders"></div>
+          </section>
+          <label class="field">
+            <span>Currency display</span>
+            <select id="adminCurrency">
+              <option value="Rs">Rs</option>
+              <option value="GBP">GBP</option>
+              <option value="USD">USD</option>
+            </select>
+          </label>
+          <p class="modal__sub modal__sub--tight">
+            Power shortcuts: <kbd>?</kbd> help · <kbd>/</kbd> search · <kbd>L</kbd> quick add · <kbd>↑</kbd><kbd>↓</kbd> list ·
+            <kbd>D</kbd> delay next month · Ctrl/Cmd-click multi-select
+          </p>
+          <div class="admin-actions">
+            <button type="button" class="btn btn--ghost" id="btnExportCsv">Export CSV</button>
+            <label class="btn btn--ghost admin-file">
+              Import CSV
+              <input type="file" id="csvImportInput" accept=".csv,text/csv" hidden />
+            </label>
+          </div>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" id="btnAdminCancel">Cancel</button>
+          <button type="button" class="btn btn--primary" id="btnAdminSave">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statement import preview -->
+    <div class="modal" id="modalStatementReview" hidden>
+      <div
+        class="modal__card modal__card--statement"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="statementReviewTitle"
+      >
+        <h3 class="modal__title" id="statementReviewTitle">Statement preview</h3>
+        <p class="modal__sub" id="statementReviewSummary">Review parsed outgoing transactions before importing.</p>
+        <p class="modal__sub modal__sub--tight" id="statementReviewTotals"></p>
+        <div id="statementReviewList" class="statement-review-list"></div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" id="btnStatementCancel">Cancel</button>
+          <button type="button" class="btn btn--primary" id="btnStatementImport">Import selected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Review -->
+    <div class="modal" id="modalCategoryReview" hidden>
+      <div class="modal__card modal__card--wide" role="dialog" aria-modal="true" aria-labelledby="catReviewTitle">
+        <h3 class="modal__title" id="catReviewTitle">Category review</h3>
+        <p class="modal__sub">Map AI-suggested categories to your approved set.</p>
+        <div id="categoryReviewList" class="cat-review-list"></div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" id="btnCategoryReviewCancel">Cancel</button>
+          <button type="button" class="btn btn--primary" id="btnCategoryReviewApply">Apply mappings</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="modalChartOther" hidden>
+      <div class="modal__card modal__card--wide" role="dialog" aria-modal="true" aria-labelledby="chartOtherTitle">
+        <h3 class="modal__title" id="chartOtherTitle">Other — breakdown</h3>
+        <p class="modal__sub">Smaller slices grouped in the ring chart.</p>
+        <ul class="chart-other-list" id="chartOtherList"></ul>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" id="btnChartOtherClose">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="modalShortcuts" hidden>
+      <div class="modal__card modal__card--wide" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle">
+        <h3 class="modal__title" id="shortcutsTitle">Keyboard shortcuts</h3>
+        <ul class="shortcuts-list">
+          <li><kbd>?</kbd> Open this list</li>
+          <li><kbd>/</kbd> Focus side search</li>
+          <li><kbd>L</kbd> Focus quick add (bottom bar)</li>
+          <li><kbd>B</kbd> Bar chart · <kbd>P</kbd> Pie / ring chart</li>
+          <li><kbd>[</kbd> · <kbd>]</kbd> or arrow keys — previous / next month (when not typing)</li>
+          <li><kbd>Esc</kbd> Close a modal, clear the selected calendar day, or cancel side inline edit</li>
+          <li><kbd>Enter</kbd> Save when editing an inline field on the list</li>
+          <li><kbd>↑</kbd> / <kbd>↓</kbd> Navigate upcoming list (when focus is not in a field)</li>
+          <li><kbd>D</kbd> Delay focused / selected items to the same day next month (+ <kbd>7</kbd> via hover +7)</li>
+          <li>Ctrl / Cmd+click — multi-select upcoming rows; use the bulk bar for move, status, or delete</li>
+        </ul>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" id="btnShortcutsClose">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <!-- Classic scripts so file:// works (ES modules are often blocked when opening index.html directly) -->
+    <script src="js/storage.js"></script>
+    <script src="js/items.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/statements.js"></script>
+    <script src="js/calendar.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
